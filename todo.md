@@ -34,4 +34,4 @@
 - [x] Vitest auth.logout test passé (1/1)
 
 ## GitHub
-- [ ] Pousser le code sur GitHub
+- [x] Pousser le code sur GitHub
