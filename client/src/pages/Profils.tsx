@@ -1,149 +1,183 @@
 /*
  * CLAUDINE — Page Profils (Découvrir les profils)
- * Matches maquette: pink bg, search bar, filter pills, member cards with discount badge
- * Nav: "Profils" active (bordeaux pill), "Mon profil" inactive
+ * Uses real tRPC data. "Contacter" creates a conversation and redirects to /chat/:id
  */
 import { useState } from "react";
-import { Link } from "wouter";
-import { Search, MapPin, Store, Sparkles } from "lucide-react";
+import { useLocation } from "wouter";
+import { Search, MapPin, Store, Sparkles, MessageCircle } from "lucide-react";
+import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import ClaudineNav from "@/components/ClaudineNav";
+import { getLoginUrl } from "@/const";
 
-const MEMBERS = [
-  { id: 1, name: "Nicolas", initial: "N", store: "NIKE", city: "PARIS", discount: 30, wants: ["Sephora", "Decathlon", "H&M", "+1"] },
-  { id: 2, name: "QuentinURL", initial: "Q", store: "ZARA", city: "PARIS", discount: 30, wants: ["Zara", "Fnac", "Nike", "+3"] },
-  { id: 3, name: "Marie", initial: "M", store: "SEPHORA", city: "LYON", discount: 25, wants: ["Nike", "Adidas", "+2"] },
-  { id: 4, name: "Thomas", initial: "T", store: "DECATHLON", city: "BORDEAUX", discount: 20, wants: ["H&M", "Zara", "Uniqlo"] },
-  { id: 5, name: "Sophie", initial: "S", store: "H&M", city: "PARIS", discount: 25, wants: ["Sephora", "Nike", "+1"] },
-  { id: 6, name: "Lucas", initial: "L", store: "FNAC", city: "MARSEILLE", discount: 15, wants: ["Decathlon", "Adidas"] },
-];
-
-type FilterType = "autour" | "tous" | "recherche" | "interesses" | "mutuel";
+function Avatar({ name, size = 44 }: { name?: string | null; size?: number }) {
+  const letter = (name ?? "?")[0]?.toUpperCase() ?? "?";
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: "#EDD5E5",
+        color: "#5C0029",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: "'Nunito', sans-serif",
+        fontWeight: 800,
+        fontSize: size * 0.38,
+        flexShrink: 0,
+      }}
+    >
+      {letter}
+    </div>
+  );
+}
 
 export default function Profils() {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<FilterType>("autour");
+  const [, navigate] = useLocation();
+  const { isAuthenticated } = useAuth();
 
-  const filtered = MEMBERS.filter(
-    (m) =>
-      m.name.toLowerCase().includes(query.toLowerCase()) ||
-      m.store.toLowerCase().includes(query.toLowerCase()) ||
-      m.city.toLowerCase().includes(query.toLowerCase())
-  );
+  const { data: profiles, isLoading } = trpc.profile.list.useQuery();
+  const startConvo = trpc.chat.getOrCreateConversation.useMutation({
+    onSuccess: (convo) => navigate(`/chat/${convo.id}`),
+    onError: (e) => toast.error(e.message),
+  });
 
-  const filters: { key: FilterType; label: string }[] = [
-    { key: "autour", label: `Autour de moi (${filtered.length})` },
-    { key: "tous", label: `Tous (${MEMBERS.length})` },
-    { key: "recherche", label: "Ce que je recherche (1)" },
-    { key: "interesses", label: "Ils sont intéressés par moi (0)" },
-    { key: "mutuel", label: "✦ Whaou ! vous êtes mutuellement intéressé (0)" },
-  ];
+  const filtered = (profiles ?? []).filter((row) => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return (
+      row.profile.pseudo?.toLowerCase().includes(q) ||
+      row.profile.enseigne?.toLowerCase().includes(q) ||
+      row.profile.ville?.toLowerCase().includes(q)
+    );
+  });
+
+  const handleContact = (userId: number) => {
+    if (!isAuthenticated) {
+      window.location.href = getLoginUrl();
+      return;
+    }
+    startConvo.mutate({ otherUserId: userId });
+  };
 
   return (
     <div style={{ fontFamily: "'Nunito', sans-serif", background: "#F3E4EC", minHeight: "100vh" }}>
       <ClaudineNav />
 
       <main style={{ maxWidth: 1100, margin: "0 auto", padding: "2.5rem 1.5rem" }}>
-        {/* Header */}
         <h1 style={{ fontFamily: "'Abril Fatface', serif", fontSize: "clamp(2rem, 5vw, 2.8rem)", color: "#5C0029", marginBottom: "0.4rem" }}>
           Découvrir les profils
         </h1>
-        <p style={{ fontFamily: "'Nunito', sans-serif", color: "#8B6B6B", fontSize: "1rem", marginBottom: "1rem" }}>
+        <p style={{ color: "#8B6B6B", fontSize: "1rem", marginBottom: "1.5rem" }}>
           Trouvez des collègues du retail avec qui partager vos avantages.
         </p>
 
-        {/* Connection counter */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1.5rem" }}>
-          <div style={{ display: "flex", gap: "0.25rem" }}>
-            <div style={{ width: 10, height: 10, borderRadius: "9999px", background: "#5C0029" }} />
-            <div style={{ width: 10, height: 10, borderRadius: "9999px", background: "#EDD5E5" }} />
-            <div style={{ width: 10, height: 10, borderRadius: "9999px", background: "#EDD5E5" }} />
-          </div>
-          <span style={{ fontFamily: "'Nunito', sans-serif", color: "#8B6B6B", fontSize: "0.875rem" }}>
-            2 mises en relation gratuites restantes
-          </span>
-        </div>
-
         {/* Search bar */}
-        <div style={{ position: "relative", marginBottom: "1.5rem" }}>
+        <div style={{ position: "relative", marginBottom: "2rem", maxWidth: 600 }}>
           <Search size={16} style={{ position: "absolute", left: "1rem", top: "50%", transform: "translateY(-50%)", color: "#8B6B6B" }} />
           <input
             className="claudine-input"
-            style={{ paddingLeft: "2.5rem", borderRadius: "9999px" }}
+            style={{ paddingLeft: "2.5rem", borderRadius: "9999px", width: "100%", boxSizing: "border-box" }}
             placeholder="Rechercher par nom, enseigne ou ville..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
 
-        {/* Filter pills */}
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "2rem" }}>
-          {filters.map((f) => (
-            <button
-              key={f.key}
-              className={`filter-pill ${filter === f.key ? "active" : ""}`}
-              onClick={() => setFilter(f.key)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        {/* Loading */}
+        {isLoading && (
+          <div style={{ color: "#8B6B6B", textAlign: "center", padding: "3rem" }}>Chargement des profils...</div>
+        )}
 
-        {/* Member cards grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1.25rem" }}>
-          {filtered.map((member) => (
-            <div key={member.id} className="claudine-card" style={{ background: "white" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                  <div className="avatar-circle">
-                    {member.initial}
-                  </div>
-                  <div>
-                    <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800, fontSize: "1rem", color: "#2C1A1A" }}>
-                      {member.name}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "#8B6B6B", fontSize: "0.8rem" }}>
-                      <Store size={12} />
-                      <span>{member.store}</span>
-                    </div>
-                  </div>
-                </div>
-                <span className="badge-discount">% -{member.discount}%</span>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "#8B6B6B", fontSize: "0.8rem", marginBottom: "0.75rem" }}>
-                <MapPin size={12} />
-                <span>{member.city}</span>
-              </div>
-
-              <div>
-                <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: "0.7rem", color: "#8B6B6B", letterSpacing: "0.08em", marginBottom: "0.4rem", textTransform: "uppercase" }}>
-                  Recherche
-                </div>
-                <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-                  {member.wants.map((w) => (
-                    <span key={w} style={{ border: "1.5px solid #EDD5E5", borderRadius: "9999px", padding: "0.2rem 0.6rem", fontFamily: "'Nunito', sans-serif", fontSize: "0.8rem", color: "#5C0029", fontWeight: 600 }}>
-                      {w}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <button
-                className="btn-bordeaux"
-                style={{ width: "100%", justifyContent: "center", marginTop: "1rem", fontSize: "0.875rem" }}
-              >
-                Contacter
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {filtered.length === 0 && (
+        {/* Empty */}
+        {!isLoading && filtered.length === 0 && (
           <div style={{ textAlign: "center", padding: "3rem", color: "#8B6B6B" }}>
             <Sparkles size={40} style={{ margin: "0 auto 1rem", color: "#EDD5E5" }} />
-            <p style={{ fontFamily: "'Nunito', sans-serif", fontSize: "1rem" }}>Aucun profil trouvé pour cette recherche.</p>
+            <p>{query ? "Aucun profil ne correspond à ta recherche." : "Aucun profil public pour l'instant. Sois le premier !"}</p>
           </div>
         )}
+
+        {/* Grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1.25rem" }}>
+          {filtered.map((row) => {
+            const { profile, user } = row;
+            const name = profile.pseudo ?? user.name ?? `Membre #${user.id}`;
+            const enseignes: string[] = Array.isArray(profile.enseignesRecherchees)
+              ? (profile.enseignesRecherchees as string[])
+              : [];
+
+            return (
+              <div
+                key={profile.id}
+                className="claudine-card"
+                style={{ background: "white", display: "flex", flexDirection: "column", gap: "0.75rem" }}
+              >
+                {/* Top row */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                    <Avatar name={name} />
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: "1rem", color: "#2C1A1A" }}>{name}</div>
+                      {profile.enseigne && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "#8B6B6B", fontSize: "0.8rem" }}>
+                          <Store size={12} />
+                          {profile.enseigne}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {profile.reductionPct != null && profile.reductionPct > 0 && (
+                    <span className="badge-discount">% -{profile.reductionPct}%</span>
+                  )}
+                </div>
+
+                {/* Ville */}
+                {profile.ville && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "#8B6B6B", fontSize: "0.82rem" }}>
+                    <MapPin size={12} />
+                    {profile.ville.toUpperCase()}
+                  </div>
+                )}
+
+                {/* Enseignes recherchées */}
+                {enseignes.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#8B6B6B", letterSpacing: "0.08em", marginBottom: "0.35rem", textTransform: "uppercase" }}>
+                      Recherche
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                      {enseignes.slice(0, 3).map((e) => (
+                        <span key={e} style={{ border: "1.5px solid #EDD5E5", borderRadius: "9999px", padding: "0.2rem 0.65rem", fontSize: "0.78rem", color: "#5C0029", fontWeight: 600 }}>
+                          {e}
+                        </span>
+                      ))}
+                      {enseignes.length > 3 && (
+                        <span style={{ border: "1.5px solid #EDD5E5", borderRadius: "9999px", padding: "0.2rem 0.65rem", fontSize: "0.78rem", color: "#8B6B6B" }}>
+                          +{enseignes.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Contact button */}
+                <button
+                  onClick={() => handleContact(user.id)}
+                  disabled={startConvo.isPending}
+                  className="btn-bordeaux"
+                  style={{ width: "100%", justifyContent: "center", marginTop: "auto", fontSize: "0.875rem" }}
+                >
+                  <MessageCircle size={14} />
+                  Contacter
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </main>
     </div>
   );

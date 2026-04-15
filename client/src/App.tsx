@@ -9,16 +9,19 @@ import Profils from "./pages/Profils";
 import MonProfil from "./pages/MonProfil";
 import Inscription from "./pages/Inscription";
 import Connexion from "./pages/Connexion";
+import Chat from "./pages/Chat";
 
 function Router() {
   return (
     <Switch>
-      <Route path={"/"} component={Landing} />
-      <Route path={"/profils"} component={Profils} />
-      <Route path={"/mon-profil"} component={MonProfil} />
-      <Route path={"/inscription"} component={Inscription} />
-      <Route path={"/connexion"} component={Connexion} />
-      <Route path={"/404"} component={NotFound} />
+      <Route path="/" component={Landing} />
+      <Route path="/profils" component={Profils} />
+      <Route path="/mon-profil" component={MonProfil} />
+      <Route path="/inscription" component={Inscription} />
+      <Route path="/connexion" component={Connexion} />
+      <Route path="/chat" component={Chat} />
+      <Route path="/chat/:conversationId" component={Chat} />
+      <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
   );
